@@ -1,0 +1,48 @@
+
+        location = /lua-resty-s3/proxy/ {
+            internal;
+            
+            set_unescape_uri $my_host $arg_host;
+            set_unescape_uri $my_uri $arg_uri;
+            
+            resolver 8.8.8.8;
+            
+            proxy_set_header User-Agent 'Mozilla/5.0 (X11; Linux x86_64; rv:16.0)';
+            proxy_pass http://$my_host:80$my_uri;
+        }
+        
+        location = /lua-resty-s3/test/ {
+            internal;
+            
+            content_by_lua '
+                local s3 = require "s3"
+                
+                local params = ngx.req.get_query_args()
+                
+                if not params.aws_id or not params.aws_key then
+                    ngx.say("no aws id or key")
+                    ngx.exit(ngx.OK)
+                end
+                
+                local ms3, err = s3:new(params.aws_id, params.aws_key)
+                
+                if err then ngx.say(err) ngx.exit(ngx.OK) end
+
+                local final_url, err = ms3:upload_url("http://lorempixel.com/400/200/", params.aws_bucket, "lorempixel400x200")
+                
+                if err then
+                    ngx.say(err)
+                else
+                    ngx.say("File uploaded at: "..final_url)
+                end
+                
+                
+                local final_url, err = ms3:upload_content([[<img src="http://lorempixel.com/400/200/city/" />]], params.aws_bucket, "city")
+
+                if err then
+                    ngx.say(err)
+                else
+                    ngx.say("File uploaded at: "..final_url)
+                end
+            ';
+        }
